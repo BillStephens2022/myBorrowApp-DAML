@@ -1,0 +1,78 @@
+module Main where
+
+import Daml.Script
+
+type ItemCustodyId = ContractId ItemCustody
+
+-- Tracks the chain of custody of my property
+template ItemCustody
+  with
+    owner : Party
+    custodian : Party
+    neighbor : Party
+    itemName : Text
+    meterCount : Int  --shutter clicks
+  where
+    signatory owner
+    observer owner, custodian, neighbor
+
+    choice ReleaseItemTo : ItemCustodyId
+      with
+        friend : Party
+        currentMeterCount : Int
+      controller owner
+      do
+        create this with
+          custodian = friend
+          meterCount = currentMeterCount
+    
+    choice ReturnItemTo : ItemCustodyId
+      with
+        rightfulOwner : Party
+        currentMeterCount : Int
+      controller custodian
+      
+      do
+        create this with
+          custodian = rightfulOwner
+          meterCount = currentMeterCount
+
+
+-- test script
+setup : Script ()
+setup = script do
+  jerry <- allocatePartyWithHint "Jerry" (PartyIdHint "Jerry")
+  elaine <- allocatePartyWithHint "Elaine" (PartyIdHint "Elaine")
+  kramer <- allocatePartyWithHint "Kramer" (PartyIdHint "Kramer")
+  
+  -- 2. Construct user-id's from text
+  jerryId <- validateUserId "Jerry"
+  elaineId <- validateUserId "Elaine"
+  kramerId <- validateUserId "Kramer"
+
+  -- 3. Create users with the given rights
+  createUser (User jerryId (Some jerry)) [CanActAs jerry]
+  createUser (User elaineId (Some elaine)) [CanActAs elaine]
+  createUser (User kramerId (Some kramer)) [CanActAs kramer]
+
+  return ()
+
+
+  -- brandNewCamera <- submit jerry do
+  --   createCmd ItemCustody with
+  --     owner = jerry
+  --     custodian = jerry
+  --     neighbor = kramer
+  --     itemName = "Really Expensive Camera"
+  --     meterCount = 347
+
+  -- elaineHasCamera <- submit jerry do
+  --   exerciseCmd brandNewCamera ReleaseItemTo with
+  --     friend = elaine
+  --     currentMeterCount = 360
+
+  -- submit elaine do
+  --   exerciseCmd elaineHasCamera ReturnItemTo with
+  --     rightfulOwner = jerry
+  --     currentMeterCount = 10004
+
